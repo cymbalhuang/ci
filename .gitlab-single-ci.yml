@@ -1,0 +1,47 @@
+variables:
+  PROJECT_PATH: "/usr/local/lizhi/ad-project"
+  PROJECT_TAR_PATH: "/usr/local/lizhi/ad-tar"
+  PROJECT_NAME: "lz-ad-thirdpart"
+  SUB_PROJECT_NAME: "lz-ad-thirdpart-provider"
+  
+stages:
+  - build
+  - test
+  - deploy
+  
+office-build:
+  stage: build
+  script:
+    - mvn -U -Dmaven.test.skip=true -Denv.deploy=office -f $SUB_PROJECT_NAME/pom.xml clean package
+    - mv -f $SUB_PROJECT_NAME/target/$PROJECT_NAME-*.tar.gz $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz
+  only:
+    - /^.*rc$/
+
+pre-build:
+  stage: build
+  script:
+    - mvn -U -Dmaven.test.skip=true -Denv.deploy=pre -f $SUB_PROJECT_NAME/pom.xml clean package
+    - mv -f $SUB_PROJECT_NAME/target/$PROJECT_NAME-*.tar.gz $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz
+  only:
+    - master
+    
+online-build:
+  stage: build
+  script:
+    - mvn -U -Dmaven.test.skip=true -Denv.deploy=online -f $SUB_PROJECT_NAME/pom.xml clean package
+    - mv -f $SUB_PROJECT_NAME/target/$PROJECT_NAME-*.tar.gz $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz
+  only:
+    - tags
+
+office-deploy:
+  stage: deploy
+  script:
+    - mkdir -p $PROJECT_PATH/$PROJECT_NAME
+    - rm -rf $PROJECT_PATH/$PROJECT_NAME/*
+    - cp -pr $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz $PROJECT_PATH/$PROJECT_NAME/
+    - tar -zxvf $PROJECT_PATH/$PROJECT_NAME/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz -C $PROJECT_PATH/$PROJECT_NAME/
+    - cd $PROJECT_PATH/$PROJECT_NAME
+    - chmod 775 spk.log.rotate startup.sh shutdown.sh restart.sh
+    - ./restart.sh >/dev/null 2>&1
+  only:
+    - /^.*rc$/
