@@ -1,0 +1,49 @@
+variables:
+  # 192.168.6.16
+  # 192.168.6.119
+  HOST_NAME: "192.168.6.16"
+  PROJECT_PATH: "/usr/local/lizhi"
+  PROJECT_TAR_PATH: "/usr/local/lizhi/amusement-tar"
+  PROJECT_NAME: "lz-studio"
+  PROJECT_PATH_NAME: "lz_studio"
+  SUB_PROJECT_NAME: "lz-studio-provider"
+  
+stages:
+  - build
+  - test
+  - deploy
+  
+office-build:
+  stage: build
+  script:
+    - mvn -U -Dmaven.test.skip=true -Dlz.env=office -f $SUB_PROJECT_NAME/pom.xml clean package
+    - mv -f $SUB_PROJECT_NAME/target/$PROJECT_NAME-*.tar.gz $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz
+  only:
+    - /^.*rc$/
+
+pre-build:
+  stage: build
+  script:
+    - mvn -U -Dmaven.test.skip=true -Dlz.env=pre -f $SUB_PROJECT_NAME/pom.xml clean package
+    - mv -f $SUB_PROJECT_NAME/target/$PROJECT_NAME-*.tar.gz $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz
+  only:
+    - master
+    
+online-build:
+  stage: build
+  script:
+    - mvn -U -Dmaven.test.skip=true -Dlz.env=online -f $SUB_PROJECT_NAME/pom.xml clean package
+    - mv -f $SUB_PROJECT_NAME/target/$PROJECT_NAME-*.tar.gz $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz
+  only:
+    - tags
+
+office-deploy:
+  stage: deploy
+  script:
+    - ssh -o StrictHostKeyChecking=no root@$HOST_NAME "mkdir -p $PROJECT_PATH/$PROJECT_PATH_NAME"
+    - ssh -o StrictHostKeyChecking=no root@$HOST_NAME "rm -rf $PROJECT_PATH/$PROJECT_PATH_NAME/*"
+    - scp -o "StrictHostKeyChecking no" $PROJECT_TAR_PATH/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz root@$HOST_NAME:$PROJECT_PATH/$PROJECT_PATH_NAME/
+    - ssh -o StrictHostKeyChecking=no root@$HOST_NAME "tar -zxvf $PROJECT_PATH/$PROJECT_PATH_NAME/$PROJECT_NAME-$CI_BUILD_REF_NAME.tar.gz -C $PROJECT_PATH/$PROJECT_PATH_NAME/"
+    - ssh -o StrictHostKeyChecking=no root@$HOST_NAME "cd $PROJECT_PATH/$PROJECT_PATH_NAME; chmod 775 spk.log.rotate startup.sh shutdown.sh restart.sh; ./restart.sh >/dev/null 2>&1"
+  only:
+    - /^.*rc$/
